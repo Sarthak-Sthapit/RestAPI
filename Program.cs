@@ -71,7 +71,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
     // Basic API information displayed in Swagger UI
-    c.SwaggerDoc("v2", new OpenApiInfo { Title = "My RestAPI", Version = "v2" });
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "My RestAPI", Version = "v1" });
 
     // JWT Authentication Integration with Swagger UI
     // AddSecurityDefinition: Defines how authentication works in Swagger
