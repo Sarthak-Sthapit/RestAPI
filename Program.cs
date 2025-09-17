@@ -22,6 +22,17 @@ builder.Services.AddControllers();
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+// COMMAND HANDLERS
+builder.Services.AddScoped<RestAPI.Application.Handlers.CreateUserCommandHandler>();
+builder.Services.AddScoped<RestAPI.Application.Handlers.UpdateUserCommandHandler>();
+builder.Services.AddScoped<RestAPI.Application.Handlers.DeleteUserCommandHandler>();
+
+// QUERY HANDLERS  
+builder.Services.AddScoped<RestAPI.Application.Handlers.GetUserByIdQueryHandler>();
+builder.Services.AddScoped<RestAPI.Application.Handlers.GetAllUsersQueryHandler>();
+builder.Services.AddScoped<RestAPI.Application.Handlers.AuthenticateUserQueryHandler>();
+
+
 // Dependency Injection Registration:
 // AddScoped<Interface, Implementation>: Creates new instance per HTTP request (recommended for database operations)
 // This maps the IUserRepository interface to DatabaseUserRepository implementation

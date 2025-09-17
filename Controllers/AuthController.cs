@@ -4,6 +4,11 @@ using RestAPI.Repositories;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 using RestAPI.Services;
+using RestAPI.DTOs;
+using RestAPI.Mappers;
+using RestAPI.Application.Commands;
+using RestAPI.Application.Queries;
+using RestAPI.Application.Handlers;
 
 namespace RestAPI.Controllers
 {
@@ -18,12 +23,28 @@ namespace RestAPI.Controllers
     */
     public class AuthController : ControllerBase
     {
-        private readonly IUserRepository _repo;
-        private readonly JwtService _jwtService;
-        public AuthController(IUserRepository repo, JwtService jwtService)
+        // CQRS Handlers injected instead of repository/service directly
+        private readonly CreateUserCommandHandler _createUserHandler;
+        private readonly UpdateUserCommandHandler _updateUserHandler;
+        private readonly GetUserByIdQueryHandler _getUserHandler;
+        private readonly GetAllUsersQueryHandler _getAllUsersHandler;
+        private readonly AuthenticateUserQueryHandler _authenticateHandler;
+        private readonly DeleteUserCommandHandler _deleteUserHandler; 
+
+        public AuthController(
+            CreateUserCommandHandler createUserHandler,
+            UpdateUserCommandHandler updateUserHandler,
+            GetUserByIdQueryHandler getUserHandler,
+            GetAllUsersQueryHandler getAllUsersHandler,
+            AuthenticateUserQueryHandler authenticateHandler,
+            DeleteUserCommandHandler deleteUserHandler)
         {
-            _repo = repo;
-            _jwtService = jwtService;
+            _createUserHandler = createUserHandler;
+            _updateUserHandler = updateUserHandler;
+            _getUserHandler = getUserHandler;
+            _getAllUsersHandler = getAllUsersHandler;
+            _authenticateHandler = authenticateHandler;
+            _deleteUserHandler = deleteUserHandler;
         }
 
         /*
@@ -34,86 +55,87 @@ namespace RestAPI.Controllers
         */
         // Anyone can signup (no token needed)
         [HttpPost("signup")]
-        public IActionResult Signup(string username, string password)
+        public IActionResult Signup([FromBody] SignupDto dto)
         {
-            var existing = _repo.GetByUsername(username);
-            if (existing != null)
+            // 1. MAP: DTO → Command
+            var command = new CreateUserCommand
             {
-                return BadRequest("User already exists!");
+                Username = dto.Username,
+                Password = dto.Password
+            };
+
+            // 2. CALL HANDLER
+            var result = _createUserHandler.Handle(command);
+
+            // 3. RESPONSE
+            if (!result.Success)
+            {
+                return BadRequest(result.Message);
             }
-
-            var newUser = new User { Username = username, Password = password };
-            _repo.Add(newUser);
-
-            // Give them a token immediately
-            var token = _jwtService.CreateToken(newUser);
 
             return Ok(new
             {
-                message = "Signed up!",
-                token = token
+                message = result.Message,
+                token = result.Token,
+                user = result.User
             });
         }
+
         // no token needed
         [HttpPost("login")]
-        public IActionResult Login(string username, string password)
+        public IActionResult Login([FromBody] LoginDto dto)
         {
-            var user = _repo.GetByUsername(username);
-            if (user == null || user.Password != password)
+            // 1. MAP: DTO → Query
+            var query = new AuthenticateUserQuery
             {
-                return Unauthorized("Invalid Credentials!");
+                Username = dto.Username,
+                Password = dto.Password
+            };
+
+
+            var result = _authenticateHandler.Handle(query);
+            if (!result.Success)
+            {
+                return Unauthorized(result.Message);
             }
-            // Give them a token
-            var token = _jwtService.CreateToken(user);
 
             return Ok(new
             {
-                message = "Logged in!",
-                token = token
+                message = result.Message,
+                token = result.Token,
+                user = result.User
             });
         }
+        
         
         //token needed
         [HttpGet]
         [Authorize] //this makes it require a token
         public IActionResult GetAllUsers()
         {
-            var users = _repo.GetAll();
-
-            var safeUsers = new List<object>(); //create safe user object (without password)
-            foreach (var user in users)
-            {
-                var safeUser = new
-                {
-                    Id = user.Id,
-                    Username = user.Username,
-                    CreatedAt = user.CreatedAt,
-                };
-                safeUsers.Add(safeUser);
-            }
-            return Ok(safeUsers);
+            var query = new GetAllUsersQuery();
+            var result = _getAllUsersHandler.Handle(query);
+            return Ok(result.Users);  // DTO OUTPUT
         }
+
         //token needed
         [HttpGet("{id}")]
         [Authorize]
         public IActionResult GetUserById(int id)
         {
-            var user = _repo.GetById(id);
+            // 1. CREATE QUERY
+            var query = new GetUserByIdQuery { UserId = id };
 
-            if (user == null)
+            // 2. CALL HANDLER
+            var result = _getUserHandler.Handle(query);
+
+            // 3. RESPONSE
+            if (!result.Success)
             {
-                return NotFound("User not found!");
+                return NotFound(result.Message);
             }
 
-
-            var safeUser = new
-            {
-                Id = user.Id,
-                Username = user.Username,
-                CreatedAt = user.CreatedAt
-            };
-
-            return Ok(safeUser);
+            return Ok(result.User);
         }
 
         //Delete by ID , token needed
@@ -121,49 +143,44 @@ namespace RestAPI.Controllers
         [Authorize]
         public IActionResult DeleteUser(int id)
         {
-            var user = _repo.GetById(id);
+            // 1. CREATE COMMAND
+            var command = new DeleteUserCommand { UserId = id };
 
-            if (user == null)
+            // 2. CALL HANDLER
+            var result = _deleteUserHandler.Handle(command);
+
+            // 3. RESPONSE
+            if (!result.Success)
             {
-                return NotFound("User not found!");
+                return NotFound(result.Message);
             }
 
-            _repo.Delete(id);
-            return Ok("User deleted successfully!");
+            return Ok(new { message = result.Message });
         }
 
         // UPDATE - Update user information , token needed
         [HttpPut("{id}")]
         [Authorize]
-        public IActionResult UpdateUser(int id, string newUsername, string newPassword)
+        public IActionResult UpdateUser(int id, [FromBody] UpdateUserDto dto)
         {
-            var user = _repo.GetById(id);
-
-            if (user == null)
+            // 1. MAP: DTO → Command
+            var command = new UpdateUserCommand
             {
-                return NotFound("User not found!");
+                UserId = id,
+                NewUsername = dto.NewUsername,
+                NewPassword = dto.NewPassword
+            };
+
+            var result = _updateUserHandler.Handle(command);
+            if (!result.Success)
+            {
+                return BadRequest(result.Message);
             }
 
-            // Check if new username is already taken (if username is being changed)
-            if (!string.IsNullOrEmpty(newUsername) && newUsername != user.Username)
-            {
-                var existingUser = _repo.GetByUsername(newUsername);
-                if (existingUser != null)
-                {
-                    return BadRequest("Username already taken!");
-                }
-                user.Username = newUsername;
-            }
-
-            // Update password if provided
-            if (!string.IsNullOrEmpty(newPassword))
-            {
-                user.Password = newPassword;
-            }
-
-            _repo.Update(user);
-            return Ok("User updated successfully!");
+            return Ok(new { 
+                message = result.Message, 
+                user = result.UpdatedUser  
+            });
         }
-
     }
 }
