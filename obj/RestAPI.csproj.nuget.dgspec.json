@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "/home/sarthak/Documents/internship/RestAPI/RestAPI.csproj": {}
+    "/home/sarthak/Documents/internship/RestAPI(auto)/RestAPI.csproj": {}
   },
   "projects": {
-    "/home/sarthak/Documents/internship/RestAPI/RestAPI.csproj": {
+    "/home/sarthak/Documents/internship/RestAPI(auto)/RestAPI.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/home/sarthak/Documents/internship/RestAPI/RestAPI.csproj",
+        "projectUniqueName": "/home/sarthak/Documents/internship/RestAPI(auto)/RestAPI.csproj",
         "projectName": "RestAPI",
-        "projectPath": "/home/sarthak/Documents/internship/RestAPI/RestAPI.csproj",
+        "projectPath": "/home/sarthak/Documents/internship/RestAPI(auto)/RestAPI.csproj",
         "packagesPath": "/home/sarthak/.nuget/packages/",
-        "outputPath": "/home/sarthak/Documents/internship/RestAPI/obj/",
+        "outputPath": "/home/sarthak/Documents/internship/RestAPI(auto)/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "/home/sarthak/.nuget/NuGet/NuGet.Config"
@@ -44,6 +44,22 @@
         "net9.0": {
           "targetAlias": "net9.0",
           "dependencies": {
+            "AutoMapper": {
+              "target": "Package",
+              "version": "[12.0.1, )"
+            },
+            "AutoMapper.Extensions.Microsoft.DependencyInjection": {
+              "target": "Package",
+              "version": "[12.0.1, )"
+            },
+            "MediatR": {
+              "target": "Package",
+              "version": "[12.4.0, )"
+            },
+            "MediatR.Extensions.Microsoft.DependencyInjection": {
+              "target": "Package",
+              "version": "[11.1.0, )"
+            },
             "Microsoft.AspNetCore.Authentication.JwtBearer": {
               "target": "Package",
               "version": "[9.0.9, )"
@@ -89,7 +105,7 @@
           "downloadDependencies": [
             {
               "name": "Microsoft.AspNetCore.App.Ref",
-              "version": "[9.0.8, 9.0.8]"
+              "version": "[9.0.9, 9.0.9]"
             }
           ],
           "frameworkReferences": {
@@ -100,7 +116,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "/usr/share/dotnet/sdk/9.0.109/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "/usr/share/dotnet/sdk/9.0.110/PortableRuntimeIdentifierGraph.json"
         }
       }
     }

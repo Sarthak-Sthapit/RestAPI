@@ -1,81 +1,31 @@
-using Microsoft.EntityFrameworkCore;                    // Entity Framework Core for database operations
-using RestAPI.Data;                                     
-using RestAPI.Repositories;                             
-using Microsoft.AspNetCore.Authentication.JwtBearer;   // JWT Bearer authentication middleware
-using Microsoft.IdentityModel.Tokens;                  // Token validation and security key classes
-using System.Text;                                      // Text encoding for converting strings to bytes
-using RestAPI.Services;                               
-using Microsoft.OpenApi.Models;                        // Swagger/OpenAPI models for API documentation
+using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using System.Reflection; // Added this
+using RestAPI.Data;
+using RestAPI.Repositories;
+using RestAPI.Services;
+using Microsoft.OpenApi.Models;    
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add controllers to Dependency Injection container
-// This enables MVC pattern and allows controllers to be discovered
-builder.Services.AddControllers();
-
-// Configure Entity Framework with PostgreSQL
-// AddDbContext<T>: Registers your DbContext class with the DI container
-// - Creates a new instance for each request (Scoped lifetime by default)
-// - Makes database operations available throughout your application
-// UseNpgsql: Tells Entity Framework to use PostgreSQL as the database provider
-// GetConnectionString: Retrieves connection string from appsettings.json under "ConnectionStrings:DefaultConnection"
+// Your existing database configuration
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// COMMAND HANDLERS
-builder.Services.AddScoped<RestAPI.Application.Handlers.CreateUserCommandHandler>();
-builder.Services.AddScoped<RestAPI.Application.Handlers.UpdateUserCommandHandler>();
-builder.Services.AddScoped<RestAPI.Application.Handlers.DeleteUserCommandHandler>();
-
-// QUERY HANDLERS  
-builder.Services.AddScoped<RestAPI.Application.Handlers.GetUserByIdQueryHandler>();
-builder.Services.AddScoped<RestAPI.Application.Handlers.GetAllUsersQueryHandler>();
-builder.Services.AddScoped<RestAPI.Application.Handlers.AuthenticateUserQueryHandler>();
-
-
-// Dependency Injection Registration:
-// AddScoped<Interface, Implementation>: Creates new instance per HTTP request (recommended for database operations)
-// This maps the IUserRepository interface to DatabaseUserRepository implementation
-// When a controller needs IUserRepository, it will get DatabaseUserRepository instance
+// Your existing dependencies
 builder.Services.AddScoped<IUserRepository, DatabaseUserRepository>();
-builder.Services.AddScoped<JwtService>(); // Register JWT service for token creation/validation
+builder.Services.AddScoped<JwtService>();
 
-// JWT Authentication Configuration
-// These values come from appsettings.json under "Jwt" section
-// ?? throw: If configuration values are missing, throw an exception (fail-fast approach)
-var jwtSecretKey = builder.Configuration["Jwt:SecretKey"]
-    ?? throw new ArgumentNullException("Jwt:SecretKey not found in configuration");
-var jwtIssuer = builder.Configuration["Jwt:Issuer"]
-    ?? throw new ArgumentNullException("Jwt:Issuer not found in configuration");
+// MediatR and AutoMapper registration
+builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(Assembly.GetExecutingAssembly()));
+builder.Services.AddAutoMapper(Assembly.GetExecutingAssembly());
 
-// AddAuthentication: Registers authentication services with the DI container
-// JwtBearerDefaults.AuthenticationScheme: Sets JWT Bearer as the default authentication method
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        // TokenValidationParameters: Defines how incoming JWT tokens should be validated
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            // ValidateIssuerSigningKey: Ensures the token was signed with our secret key
-            ValidateIssuerSigningKey = true,
-            // IssuerSigningKey: The key used to verify token signatures (must match token creation key)
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecretKey)),
-            
-            // ValidateIssuer: Checks if token came from our application
-            ValidateIssuer = true,
-            ValidIssuer = jwtIssuer,
-            
-            // ValidateAudience: Checks if token is intended for our application
-            ValidateAudience = true,
-            ValidAudience = jwtIssuer, // Using same as issuer for simplicity
-            
-            // ValidateLifetime: Ensures token hasn't expired
-            ValidateLifetime = true
-        };
-    });
+// Your existing controller registration
+builder.Services.AddControllers();
 
-// Swagger Configuration for API Documentation
-// AddEndpointsApiExplorer: Discovers API endpoints for Swagger documentation
+// Your existing Swagger
 builder.Services.AddEndpointsApiExplorer();
 
 // AddSwaggerGen: Configures Swagger UI for testing API endpoints
@@ -113,38 +63,36 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// Build the WebApplication from the configured builder
-// This creates the actual application instance that will handle HTTP requests
+// Your existing JWT authentication
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"],
+            ValidAudience = builder.Configuration["Jwt:Issuer"],
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(builder.Configuration["Jwt:SecretKey"]))
+        };
+    });
+
 var app = builder.Build();
 
-// Development-only middleware
-// Only enable Swagger UI in development to prevent exposing API documentation in production
+// Your existing pipeline configuration
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();       // Generates OpenAPI specification
-    app.UseSwaggerUI();     // Provides interactive API documentation UI
+    app.UseSwagger();
+    app.UseSwaggerUI();
+    app.UseDeveloperExceptionPage();
 }
 
-// HTTP Pipeline Middleware (ORDER MATTERS!)
-app.UseHttpsRedirection();  // Redirects HTTP requests to HTTPS for security
-
-// Authentication Pipeline:
-// UseAuthentication: Checks if incoming requests have valid JWT tokens
-// - Parses Authorization header
-// - Validates token signature, expiration, issuer, etc.
-// - Sets User identity if token is valid
+app.UseHttpsRedirection();
 app.UseAuthentication();
-
-// UseAuthorization: Enforces access control based on user identity
-// - Checks if authenticated user has required permissions
-// - Works with [Authorize] attributes on controllers/actions
 app.UseAuthorization();
-
-// Controller Mapping (CRITICAL!)
-// MapControllers: Scans Controllers/ folder and maps controller actions to HTTP routes
-// - Looks for [HttpGet], [HttpPost], [Route] attributes
-// - Without this, controllers won't respond to HTTP requests
 app.MapControllers();
 
-// Start the application and begin listening for HTTP requests
 app.Run();

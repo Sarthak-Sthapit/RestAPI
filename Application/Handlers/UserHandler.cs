@@ -3,42 +3,46 @@ using RestAPI.Application.Queries;
 using RestAPI.Models;
 using RestAPI.Repositories;
 using RestAPI.Services;
+using MediatR;
+using AutoMapper;
 
 namespace RestAPI.Application.Handlers
 {
-    public class CreateUserCommandHandler
+    // Add IRequestHandler interface to your existing handler
+    public class CreateUserCommandHandler : IRequestHandler<CreateUserCommand, CreateUserResult>
     {
         private readonly IUserRepository _userRepository;
         private readonly JwtService _jwtService;
+        private readonly IMapper _mapper; // Add AutoMapper
 
-        public CreateUserCommandHandler(IUserRepository userRepository, JwtService jwtService)
+        public CreateUserCommandHandler(IUserRepository userRepository, JwtService jwtService, IMapper mapper)
         {
             _userRepository = userRepository;
             _jwtService = jwtService;
+            _mapper = mapper;
         }
 
-        //handle method
-
-        public CreateUserResult Handle(CreateUserCommand command)
+        // Change return type and add Task 
+        public Task<CreateUserResult> Handle(CreateUserCommand command, CancellationToken cancellationToken)
         {
-            //validation
+            // Keep ALL your existing logic exactly the same
             if (string.IsNullOrEmpty(command.Username) || string.IsNullOrEmpty(command.Password))
             {
-                return new CreateUserResult
+                return Task.FromResult(new CreateUserResult
                 {
                     Success = false,
                     Message = "Username and Password are required"
-                };
+                });
             }
 
             var existingUser = _userRepository.GetByUsername(command.Username);
             if (existingUser != null)
             {
-                return new CreateUserResult
+                return Task.FromResult(new CreateUserResult
                 {
                     Success = false,
                     Message = "User already exists!"
-                };
+                });
             }
 
             var newUser = new User
@@ -52,60 +56,57 @@ namespace RestAPI.Application.Handlers
 
             var token = _jwtService.CreateToken(newUser);
 
-            return new CreateUserResult
+            // Use AutoMapper instead of manual mapping
+            var userData = _mapper.Map<CreateUserResult.UserData>(newUser);
+
+            return Task.FromResult(new CreateUserResult
             {
                 Success = true,
                 UserId = newUser.Id,
                 Message = "User Created Successfully!",
                 Token = token,
-                User = new CreateUserResult.UserData
-                {
-                    Id = newUser.Id,
-                    Username = newUser.Username,
-                    MemberSince = newUser.CreatedAt
-                }
-            };
+                User = userData
+            });
         }
     }
 
-
-    public class UpdateUserCommandHandler
+    public class UpdateUserCommandHandler : IRequestHandler<UpdateUserCommand, UpdateUserResult>
     {
         private readonly IUserRepository _userRepository;
+        private readonly IMapper _mapper;
 
-        public UpdateUserCommandHandler(IUserRepository userRepository)
+        public UpdateUserCommandHandler(IUserRepository userRepository, IMapper mapper)
         {
             _userRepository = userRepository;
+            _mapper = mapper;
         }
 
-        public UpdateUserResult Handle(UpdateUserCommand command)
+        public Task<UpdateUserResult> Handle(UpdateUserCommand command, CancellationToken cancellationToken)
         {
-            //Finding user
+            // Keep ALL your existing logic
             var user = _userRepository.GetById(command.UserId);
             if (user == null)
             {
-                return new UpdateUserResult
+                return Task.FromResult(new UpdateUserResult
                 {
                     Success = false,
                     Message = "User not found!"
-                };
+                });
             }
 
-            //Checking username availability
             if (!string.IsNullOrEmpty(command.NewUsername) && command.NewUsername != user.Username)
             {
                 var existingUser = _userRepository.GetByUsername(command.NewUsername);
                 if (existingUser != null)
                 {
-                    return new UpdateUserResult
+                    return Task.FromResult(new UpdateUserResult
                     {
                         Success = false,
                         Message = "Username already taken!"
-                    };
+                    });
                 }
             }
 
-            //Applying updates
             if (!string.IsNullOrEmpty(command.NewUsername))
                 user.Username = command.NewUsername;
             
@@ -114,170 +115,158 @@ namespace RestAPI.Application.Handlers
 
             _userRepository.Update(user);
 
-            //Return result
-            return new UpdateUserResult
+            // Use AutoMapper
+            var userData = _mapper.Map<UpdateUserResult.UserData>(user);
+
+            return Task.FromResult(new UpdateUserResult
             {
                 Success = true,
                 Message = "User updated successfully!",
-                UpdatedUser = new UpdateUserResult.UserData
-                {
-                    Id = user.Id,
-                    Username = user.Username,
-                    MemberSince = user.CreatedAt
-                }
-            };
+                UpdatedUser = userData
+            });
         }
     }
 
-    //Query Handlers
-
-    public class GetUserByIdQueryHandler
+    public class GetUserByIdQueryHandler : IRequestHandler<GetUserByIdQuery, GetUserResult>
     {
         private readonly IUserRepository _userRepository;
+        private readonly IMapper _mapper;
 
-        public GetUserByIdQueryHandler(IUserRepository userRepository)
+        public GetUserByIdQueryHandler(IUserRepository userRepository, IMapper mapper)
         {
             _userRepository = userRepository;
+            _mapper = mapper;
         }
 
-        public GetUserResult Handle(GetUserByIdQuery query)
+        public Task<GetUserResult> Handle(GetUserByIdQuery query, CancellationToken cancellationToken)
         {
             var user = _userRepository.GetById(query.UserId);
             
             if (user == null)
             {
-                return new GetUserResult
+                return Task.FromResult(new GetUserResult
                 {
                     Success = false,
                     Message = "User not found!"
-                };
+                });
             }
 
-            return new GetUserResult
+            // Use AutoMapper
+            var userData = _mapper.Map<GetUserResult.UserData>(user);
+
+            return Task.FromResult(new GetUserResult
             {
                 Success = true,
                 Message = "User found",
-                User = new GetUserResult.UserData
-                {
-                    Id = user.Id,
-                    Username = user.Username,
-                    MemberSince = user.CreatedAt
-                }
-            };
+                User = userData
+            });
         }
     }
 
-    public class GetAllUsersQueryHandler
+    public class GetAllUsersQueryHandler : IRequestHandler<GetAllUsersQuery, GetAllUsersResult>
     {
         private readonly IUserRepository _userRepository;
+        private readonly IMapper _mapper;
 
-        public GetAllUsersQueryHandler(IUserRepository userRepository)
+        public GetAllUsersQueryHandler(IUserRepository userRepository, IMapper mapper)
         {
             _userRepository = userRepository;
+            _mapper = mapper;
         }
 
-        public GetAllUsersResult Handle(GetAllUsersQuery query)
+        public Task<GetAllUsersResult> Handle(GetAllUsersQuery query, CancellationToken cancellationToken)
         {
             var users = _userRepository.GetAll();
 
-            var userSummaries = users.Select(user => new GetAllUsersResult.UserSummary
-            {
-                Id = user.Id,
-                Username = user.Username,
-                MemberSince = user.CreatedAt,
-            }).ToList();
+            // Use AutoMapper for list mapping
+            var userSummaries = _mapper.Map<List<GetAllUsersResult.UserSummary>>(users);
 
-            return new GetAllUsersResult
+            return Task.FromResult(new GetAllUsersResult
             {
                 Success = true,
                 Users = userSummaries
-            };
+            });
         }
-
     }
 
-    public class AuthenticateUserQueryHandler
+    public class AuthenticateUserQueryHandler : IRequestHandler<AuthenticateUserQuery, AuthenticateUserResult>
     {
         private readonly IUserRepository _userRepository;
         private readonly JwtService _jwtService;
+        private readonly IMapper _mapper;
 
-        public AuthenticateUserQueryHandler(IUserRepository userRepository, JwtService jwtService)
+        public AuthenticateUserQueryHandler(IUserRepository userRepository, JwtService jwtService, IMapper mapper)
         {
             _userRepository = userRepository;
             _jwtService = jwtService;
+            _mapper = mapper;
         }
 
-        public AuthenticateUserResult Handle(AuthenticateUserQuery query)
+        public Task<AuthenticateUserResult> Handle(AuthenticateUserQuery query, CancellationToken cancellationToken)
         {
-            // Validation
             if (string.IsNullOrEmpty(query.Username) || string.IsNullOrEmpty(query.Password))
             {
-                return new AuthenticateUserResult
+                return Task.FromResult(new AuthenticateUserResult
                 {
                     Success = false,
                     Message = "Username and password are required"
-                };
+                });
             }
 
-            // Find and validate user
             var user = _userRepository.GetByUsername(query.Username);
             if (user == null || user.Password != query.Password)
             {
-                return new AuthenticateUserResult
+                return Task.FromResult(new AuthenticateUserResult
                 {
                     Success = false,
                     Message = "Invalid credentials!"
-                };
+                });
             }
 
-            // Generate token
             var token = _jwtService.CreateToken(user);
 
-            return new AuthenticateUserResult
+            // Use AutoMapper
+            var userInfo = _mapper.Map<AuthenticateUserResult.UserInfo>(user);
+
+            return Task.FromResult(new AuthenticateUserResult
             {
                 Success = true,
                 Message = "Authentication successful!",
                 Token = token,
-                User = new AuthenticateUserResult.UserInfo
-                {
-                    Id = user.Id,
-                    Username = user.Username,
-                    MemberSince = user.CreatedAt
-                }
-            };
+                User = userInfo
+            });
         }
     }
 
-        public class DeleteUserCommandHandler
+    public class DeleteUserCommandHandler : IRequestHandler<DeleteUserCommand, DeleteUserResult>
+    {
+        private readonly IUserRepository _userRepository;
+
+        public DeleteUserCommandHandler(IUserRepository userRepository)
         {
-            private readonly IUserRepository _userRepository;
+            _userRepository = userRepository;
+        }
 
-            public DeleteUserCommandHandler(IUserRepository userRepository)
+        public Task<DeleteUserResult> Handle(DeleteUserCommand command, CancellationToken cancellationToken)
+        {
+            var user = _userRepository.GetById(command.UserId);
+
+            if (user == null)
             {
-                _userRepository = userRepository;
+                return Task.FromResult(new DeleteUserResult
+                {
+                    Success = false,
+                    Message = "User not found!"
+                });
             }
 
-            // Executes the delete logic
-            public DeleteUserResult Handle(DeleteUserCommand command)
+            _userRepository.Delete(command.UserId);
+
+            return Task.FromResult(new DeleteUserResult
             {
-                var user = _userRepository.GetById(command.UserId);
-
-                if (user == null)
-                {
-                    return new DeleteUserResult
-                    {
-                        Success = false,
-                        Message = "User not found!"
-                    };
-                }
-
-                _userRepository.Delete(command.UserId);
-
-                return new DeleteUserResult
-                {
-                    Success = true,
-                    Message = "User deleted successfully!"
-                };
-            }
+                Success = true,
+                Message = "User deleted successfully!"
+            });
         }
     }
+}

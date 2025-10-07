@@ -1,6 +1,8 @@
+using MediatR;
+
 namespace RestAPI.Application.Commands
 {
-      public class UpdateUserCommand
+    public class UpdateUserCommand : IRequest<UpdateUserResult>
     {
         public int UserId { get; set; }
         public string? NewUsername { get; set; }

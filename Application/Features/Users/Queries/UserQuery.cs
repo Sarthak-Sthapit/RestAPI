@@ -1,27 +1,25 @@
-// Application/Queries/UserQueries.cs
+using MediatR;
+
 namespace RestAPI.Application.Queries
 {
-    // Query - get single user
-    public class GetUserByIdQuery
+    public class GetUserByIdQuery : IRequest<GetUserResult>
     {
         public int UserId { get; set; }
     }
 
-    // Query - get all users  
-    public class GetAllUsersQuery
+    public class GetAllUsersQuery : IRequest<GetAllUsersResult>
     {
         public int Page { get; set; } = 1;
         public int PageSize { get; set; } = 100;
     }
 
-    // Query - authenticate user
-    public class AuthenticateUserQuery
+    public class AuthenticateUserQuery : IRequest<AuthenticateUserResult>
     {
         public string Username { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
     }
 
-    // Query Results
+   
     public class GetUserResult
     {
         public bool Success { get; set; }

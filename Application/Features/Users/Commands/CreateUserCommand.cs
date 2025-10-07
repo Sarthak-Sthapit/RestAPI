@@ -1,8 +1,9 @@
+using MediatR;
 namespace RestAPI.Application.Commands
 {
 
     //command - data controller
-    public class CreateUserCommand
+    public class CreateUserCommand : IRequest<CreateUserResult>
     {
         public string Username { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
@@ -26,7 +27,7 @@ namespace RestAPI.Application.Commands
 
         }
 
-        
+
 
     }
 

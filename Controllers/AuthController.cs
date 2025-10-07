@@ -5,69 +5,38 @@ using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 using RestAPI.Services;
 using RestAPI.DTOs;
-using RestAPI.Mappers;
 using RestAPI.Application.Commands;
 using RestAPI.Application.Queries;
 using RestAPI.Application.Handlers;
+using MediatR; // Added this
 
 namespace RestAPI.Controllers
 {
     [ApiController]
     [Route("api/[Controller]")]
-
-    /*
-    ControllerBase class from namespace Microsoft.AspNetCore
-    - ASP.NET core treats 'AuthController' as an API Controller instead of a normal c# class
-    - Provides Helper methods - Ok() , BadRequest() , Unauthorized() 
-    - Attribute based routing - ([HttpGet], [HttpPost], [HttpPut], [HttpDelete]).
-    */
     public class AuthController : ControllerBase
     {
-        // CQRS Handlers injected instead of repository/service directly
-        private readonly CreateUserCommandHandler _createUserHandler;
-        private readonly UpdateUserCommandHandler _updateUserHandler;
-        private readonly GetUserByIdQueryHandler _getUserHandler;
-        private readonly GetAllUsersQueryHandler _getAllUsersHandler;
-        private readonly AuthenticateUserQueryHandler _authenticateHandler;
-        private readonly DeleteUserCommandHandler _deleteUserHandler; 
+        // Replace all your handler dependencies with just IMediator
+        private readonly IMediator _mediator;
 
-        public AuthController(
-            CreateUserCommandHandler createUserHandler,
-            UpdateUserCommandHandler updateUserHandler,
-            GetUserByIdQueryHandler getUserHandler,
-            GetAllUsersQueryHandler getAllUsersHandler,
-            AuthenticateUserQueryHandler authenticateHandler,
-            DeleteUserCommandHandler deleteUserHandler)
+        public AuthController(IMediator mediator)
         {
-            _createUserHandler = createUserHandler;
-            _updateUserHandler = updateUserHandler;
-            _getUserHandler = getUserHandler;
-            _getAllUsersHandler = getAllUsersHandler;
-            _authenticateHandler = authenticateHandler;
-            _deleteUserHandler = deleteUserHandler;
+            _mediator = mediator;
         }
 
-        /*
-        IActionResult is also from namespace Microsoft.AspNetCore
-        - is a standard return type for API actions
-        - allows different methods (login/signup) to return different HTTP responses whilst being under same 
-        return type . for eg. Ok() , BadRequest() have different HTTP codes but same return type.
-        */
-        // Anyone can signup (no token needed)
+        // Keep your exact endpoint logic, just change handler calls
         [HttpPost("signup")]
         public IActionResult Signup([FromBody] SignupDto dto)
         {
-            // 1. MAP: DTO → Command
             var command = new CreateUserCommand
             {
                 Username = dto.Username,
                 Password = dto.Password
             };
 
-            // 2. CALL HANDLER
-            var result = _createUserHandler.Handle(command);
+            // Use mediator instead of direct handler call
+            var result = _mediator.Send(command).Result; // Keep it sync like your original
 
-            // 3. RESPONSE
             if (!result.Success)
             {
                 return BadRequest(result.Message);
@@ -81,19 +50,16 @@ namespace RestAPI.Controllers
             });
         }
 
-        // no token needed
         [HttpPost("login")]
         public IActionResult Login([FromBody] LoginDto dto)
         {
-            // 1. MAP: DTO → Query
             var query = new AuthenticateUserQuery
             {
                 Username = dto.Username,
                 Password = dto.Password
             };
 
-
-            var result = _authenticateHandler.Handle(query);
+            var result = _mediator.Send(query).Result; // Keep sync
             if (!result.Success)
             {
                 return Unauthorized(result.Message);
@@ -107,29 +73,22 @@ namespace RestAPI.Controllers
             });
         }
         
-        
-        //token needed
         [HttpGet]
-        [Authorize] //this makes it require a token
+        [Authorize]
         public IActionResult GetAllUsers()
         {
             var query = new GetAllUsersQuery();
-            var result = _getAllUsersHandler.Handle(query);
-            return Ok(result.Users);  // DTO OUTPUT
+            var result = _mediator.Send(query).Result; // Keep sync
+            return Ok(result.Users);
         }
 
-        //token needed
         [HttpGet("{id}")]
         [Authorize]
         public IActionResult GetUserById(int id)
         {
-            // 1. CREATE QUERY
             var query = new GetUserByIdQuery { UserId = id };
+            var result = _mediator.Send(query).Result; // Keep sync
 
-            // 2. CALL HANDLER
-            var result = _getUserHandler.Handle(query);
-
-            // 3. RESPONSE
             if (!result.Success)
             {
                 return NotFound(result.Message);
@@ -138,18 +97,13 @@ namespace RestAPI.Controllers
             return Ok(result.User);
         }
 
-        //Delete by ID , token needed
         [HttpDelete("{id}")]
         [Authorize]
         public IActionResult DeleteUser(int id)
         {
-            // 1. CREATE COMMAND
             var command = new DeleteUserCommand { UserId = id };
+            var result = _mediator.Send(command).Result; // Keep sync
 
-            // 2. CALL HANDLER
-            var result = _deleteUserHandler.Handle(command);
-
-            // 3. RESPONSE
             if (!result.Success)
             {
                 return NotFound(result.Message);
@@ -158,12 +112,10 @@ namespace RestAPI.Controllers
             return Ok(new { message = result.Message });
         }
 
-        // UPDATE - Update user information , token needed
         [HttpPut("{id}")]
         [Authorize]
         public IActionResult UpdateUser(int id, [FromBody] UpdateUserDto dto)
         {
-            // 1. MAP: DTO → Command
             var command = new UpdateUserCommand
             {
                 UserId = id,
@@ -171,7 +123,7 @@ namespace RestAPI.Controllers
                 NewPassword = dto.NewPassword
             };
 
-            var result = _updateUserHandler.Handle(command);
+            var result = _mediator.Send(command).Result; // Keep sync
             if (!result.Success)
             {
                 return BadRequest(result.Message);
